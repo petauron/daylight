@@ -5,9 +5,6 @@
       "release-type": "simple",
       "package-name": "daylight",
       "draft": true,
-      "prerelease": true,
-      "prerelease-type": "alpha",
-      "versioning": "prerelease",
       "include-component-in-tag": false,
       "include-v-in-tag": true
     }
