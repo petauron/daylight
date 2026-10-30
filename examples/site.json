@@ -1,0 +1,98 @@
+{
+  "admin": {
+    "disabled": true
+  },
+  "storage": {
+    "module": "file_system",
+    "root": "./state"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "private": {
+          "listen": [
+            "127.0.0.1:8080"
+          ],
+          "automatic_https": {
+            "disable": true
+          },
+          "protocols": [
+            "h1",
+            "h2"
+          ],
+          "routes": [
+            {
+              "match": [
+                {
+                  "path": [
+                    "/healthz"
+                  ],
+                  "method": [
+                    "GET",
+                    "HEAD"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "status_code": 204
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "match": [
+                {
+                  "host": [
+                    "example.com"
+                  ],
+                  "path": [
+                    "/"
+                  ],
+                  "method": [
+                    "GET",
+                    "HEAD"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "headers": {
+                    "Content-Type": [
+                      "text/html; charset=utf-8"
+                    ],
+                    "Content-Security-Policy": [
+                      "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+                    ],
+                    "X-Content-Type-Options": [
+                      "nosniff"
+                    ],
+                    "Referrer-Policy": [
+                      "no-referrer"
+                    ]
+                  },
+                  "body": ""
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "status_code": 404
+                }
+              ],
+              "terminal": true
+            }
+          ],
+          "read_header_timeout": "10s",
+          "idle_timeout": "30s",
+          "max_header_bytes": 16384
+        }
+      }
+    }
+  }
+}

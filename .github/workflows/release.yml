@@ -1,0 +1,92 @@
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: daylight-release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Require a merged PR with successful exact-head CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
+            jq -cer --arg sha "$GITHUB_SHA" --arg repo "$GITHUB_REPOSITORY"               '[.[] | select(.merged_at != null and .merge_commit_sha == $sha and .base.ref == "main" and .head.repo.full_name == $repo)] | if length == 1 then .[0] else error("one merged PR required") end')"
+          head="$(printf '%s' "$pr" | jq -er '.head.sha')"
+          for workflow in ci.yml; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$head&per_page=100" |
+              jq -e --arg sha "$head" '.workflow_runs | sort_by(.id) | last | .head_sha == $sha and .status == "completed" and .conclusion == "success"'
+          done
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
+        id: release
+        with:
+          token: ${{ github.token }}
+          target-branch: main
+      - name: Dispatch real checks on generated version PR
+        if: steps.release.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_PR: ${{ steps.release.outputs.pr }}
+        run: |
+          branch="$(printf '%s' "$VERSION_PR" | jq -er '.headBranchName')"
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$branch"
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.created == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: 1.26.6
+          cache: false
+      - name: Require immutable checked release identity
+        run: |
+          test "$RELEASE_SHA" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' | grep -qx true
+          target="$(gh release view "$RELEASE_TAG" --json targetCommitish --jq '.targetCommitish')"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$target" --jq '.sha')" = "$RELEASE_SHA"
+          gh release edit "$RELEASE_TAG" --target "$RELEASE_SHA"
+      - name: Package both architectures with verified Caddy
+        run: python3 scripts/package.py
+      - name: Stage, read back and verify private release assets
+        run: |
+          gh release upload "$RELEASE_TAG" dist/*
+          mkdir "$RUNNER_TEMP/readback"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/readback"
+          for file in dist/*; do
+            cmp "$file" "$RUNNER_TEMP/readback/$(basename "$file")"
+          done
+          (cd "$RUNNER_TEMP/readback" && sha256sum --check SHA256SUMS)
+      - name: Publish only after complete verification
+        run: |
+          gh release edit "$RELEASE_TAG" --draft=false
+          gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' | grep -qx false
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha')" = "$RELEASE_SHA"
