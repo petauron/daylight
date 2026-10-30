@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/petauron/daylight/compare/v3.0.0-alpha.1...v0.1.0) (2026-10-30)
+
+
+### Bug Fixes
+
+* start the independent Daylight package at 0.1.0 ([#5](https://github.com/petauron/daylight/issues/5)) ([b82c765](https://github.com/petauron/daylight/commit/b82c765bfd73d5b2e0d7a25c06120d329c310e26))
+
 ## [3.0.0-alpha.1](https://github.com/petauron/daylight/compare/v3.0.0-alpha.0...v3.0.0-alpha.1) (2026-10-30)
 
 
