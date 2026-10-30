@@ -69,7 +69,7 @@ jobs:
         run: |
           test "$RELEASE_SHA" = "$GITHUB_SHA"
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          test "$RELEASE_TAG" = "v$(cat version.txt)"
           gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' | grep -qx true
           target="$(gh release view "$RELEASE_TAG" --json targetCommitish --jq '.targetCommitish')"
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$target" --jq '.sha')" = "$RELEASE_SHA"
