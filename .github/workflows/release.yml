@@ -29,12 +29,18 @@ jobs:
       tag: ${{ steps.release.outputs.tag_name }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
-      - name: Require protected main at the checked commit
+      - name: Require a merged PR with successful exact-head CI
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/branches/main" |
-            jq -e --arg sha "$GITHUB_SHA" '.protected == true and .commit.sha == $sha'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$GITHUB_SHA"
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
+            jq -cer --arg sha "$GITHUB_SHA" --arg repo "$GITHUB_REPOSITORY"               '[.[] | select(.merged_at != null and .merge_commit_sha == $sha and .base.ref == "main" and .head.repo.full_name == $repo)] | if length == 1 then .[0] else error("one merged PR required") end')"
+          head="$(printf '%s' "$pr" | jq -er '.head.sha')"
+          for workflow in ci.yml codeql.yml; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$head&per_page=100" |
+              jq -e --arg sha "$head" '.workflow_runs | sort_by(.id) | last | .head_sha == $sha and .status == "completed" and .conclusion == "success"'
+          done
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
         id: release
         with:
