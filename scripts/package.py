@@ -13,7 +13,7 @@ import tempfile
 import urllib.request
 
 root = Path(__file__).resolve().parents[1]
-version = (root / "VERSION").read_text().strip()
+version = (root / "version.txt").read_text().strip()
 if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-alpha\.[0-9]+)?", version):
     raise SystemExit("invalid release version")
 lock = json.loads((root / "release/caddy.json").read_text())
