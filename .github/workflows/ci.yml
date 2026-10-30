@@ -22,3 +22,7 @@ jobs:
           go build -o "$RUNNER_TEMP/daylight" .
           python3 -m py_compile scripts/package.py
           test "$(cat VERSION)" = "$(python3 -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')"
+      - name: Package and verify both architectures
+        run: |
+          python3 scripts/package.py
+          (cd dist && sha256sum --check SHA256SUMS)

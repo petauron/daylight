@@ -10,7 +10,7 @@ A small English website about everyday technology. Daylight packages its page an
 - `release/caddy.json`: reviewed upstream Caddy version and archive digests.
 - `scripts/package.py`: packages both CPU architectures using only Go and Python standard libraries; it verifies upstream archives before extraction.
 
-Download the release for Linux amd64 or arm64 and verify `SHA256SUMS` and the GitHub provenance attestation. Extract it into an application-owned directory, then run:
+Download the release for Linux amd64 or arm64 and verify `SHA256SUMS`. Extract it into an application-owned directory, then run:
 
 ```sh
 ./daylight version
@@ -24,9 +24,9 @@ Daylight never downloads code at startup, uses a shell command, looks up Caddy t
 
 ## Updates
 
-Edit the page, submit a PR and pass the required CI. Merge the Release Please version PR after its own CI completes. The release workflow packages the exact checked tag commit, verifies and attests the archives, and publishes the draft only when both archives and checksums are confirmed.
+Edit the page, submit a PR and pass the required CI. Merge the Release Please version PR after its own CI completes. The release workflow packages the exact checked tag commit, verifies the archives, and publishes the draft only when both archives and checksums are confirmed.
 
-A website release does not update a running instance. Review its checksums and provenance in the catalog recipe, publish the signed catalog, then select the existing website instance's normal **Upgrade** action. Preserve its application identity, native service namespace, hostname, listeners and certificate storage. Proxy applications and shared gateways are separate resources and must not be restarted for a website content update.
+A website release does not update a running instance. Review its source commit, build record and checksums in the catalog recipe, publish the signed catalog, then select the existing website instance's normal **Upgrade** action. Preserve its application identity, native service namespace, hostname, listeners and certificate storage. Proxy applications and shared gateways are separate resources and must not be restarted for a website content update.
 
 The initial Daylight release starts at `3.0.0-alpha.1` because the existing static-site recipes used their Caddy version (`2.11.4`) as the application version. This keeps the managed version sequence forward-only. Caddy remains separately pinned at its existing version. Later page changes increment only Daylight's version.
 
