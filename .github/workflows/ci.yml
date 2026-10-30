@@ -20,7 +20,7 @@ jobs:
         run: |
           go vet ./...
           go build -o "$RUNNER_TEMP/daylight" .
-          python3 -m py_compile scripts/package.py
+          python3 -m py_compile scripts/package.py scripts/publish_r2.py
           test "$(cat version.txt)" = "$(python3 -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')"
       - name: Package and verify both architectures
         run: |

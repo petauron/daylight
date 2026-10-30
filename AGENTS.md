@@ -3,7 +3,7 @@
 - Keep Daylight an independently released, lightweight English website. Vastora is an optional deployment manager, never a runtime or source dependency.
 - Use the existing pinned Caddy runtime and Go/Python standard libraries. Ask before adding a dependency. Do not add a database, CMS, upload endpoint, public admin API or arbitrary install hook for the MVP.
 - Change code through a feature branch and PR. Preserve CI compilation, go vet, packaging, immutable release identities and checksum verification. No PAT, manually moved tags, fabricated checks or Actions artifact storage.
-- Use Release Please v5 and its generated version PR with GITHUB_TOKEN. Keep a release draft until its assets and verification complete. Never push directly to main. Publish only from a merged PR commit after verifying its exact-head CI and the release commit checks. The owner explicitly selected workflow enforcement for this private repository.
+- Use Release Please v5 and its generated version PR with GITHUB_TOKEN. Keep a release draft until its assets and verification complete. Never push directly to main. Publish only from a merged PR commit after verifying its exact-head CI and the release commit checks. The source is public and follows the owner-approved MVP PR/CI workflow.
 - Do not add or run local tests, builds, linters or browser QA unless explicitly requested. Required CI may run for authorized PR/release work.
 - Do not commit private addresses, environment domains, credentials, accounts, production configuration or logs. Use example.com and documentation addresses.
 - Preserve the deployment's listener, hostname, TLS policy, certificate store, CSP and health endpoint. A website update must never restart or reconfigure a separate proxy service.
