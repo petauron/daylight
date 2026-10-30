@@ -81,7 +81,7 @@ jobs:
           gh release edit "$RELEASE_TAG" --target "$RELEASE_SHA"
       - name: Package both architectures with verified Caddy
         run: python3 scripts/package.py
-      - name: Stage, read back and verify private release assets
+      - name: Stage, read back and verify release assets
         run: |
           gh release upload "$RELEASE_TAG" dist/*
           mkdir "$RUNNER_TEMP/readback"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify private Release assets and copy the two archives to R2 using runner tools."""
+"""Verify Release assets and copy the two archives to R2 using runner tools."""
 import hashlib
 import json
 import os
