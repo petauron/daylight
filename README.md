@@ -36,6 +36,6 @@ Recovery: keep the previous verified package and the application's configuration
 
 ## Release policy
 
-The source repository is private. It contains no environment hostnames, node details or credentials. Caddy is redistributed under its included Apache-2.0 license and notices. No new runtime library is needed. Verified release files are staged in private GitHub Releases; a separately authorized distribution handoff is required before catalog consumers can download them. Never embed a GitHub credential in a catalog recipe. CI does not upload downloadable Actions artifacts.
+The source repository is private. It contains no environment hostnames, node details or credentials. Caddy is redistributed under its included Apache-2.0 license and notices. No new runtime library is needed. Verified release files are staged in private GitHub Releases. CI sends the two archives directly to the configured R2 download bucket; catalog consumers use the pinned R2 files. Never embed a GitHub credential in a catalog recipe. CI does not upload downloadable Actions artifacts.
 
 See [RELEASING.md](RELEASING.md) for operator steps.

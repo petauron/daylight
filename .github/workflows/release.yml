@@ -3,6 +3,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      distribute_tag:
+        description: Existing published release to distribute to R2 (leave empty for Release Please)
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -10,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && inputs.distribute_tag == ''
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -85,8 +90,57 @@ jobs:
             cmp "$file" "$RUNNER_TEMP/readback/$(basename "$file")"
           done
           (cd "$RUNNER_TEMP/readback" && sha256sum --check SHA256SUMS)
+      - name: Distribute verified archives directly to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+          R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+          R2_ENDPOINT: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          command -v aws >/dev/null
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -cer --arg tag "$RELEASE_TAG" '[.[][] | select(.tag_name == $tag)] | if length == 1 then .[0] else error("release identity is ambiguous") end' > "$RUNNER_TEMP/release-metadata.json"
+          python3 scripts/publish_r2.py "$RELEASE_TAG" dist "$RUNNER_TEMP/release-metadata.json"
       - name: Publish only after complete verification
         run: |
           gh release edit "$RELEASE_TAG" --draft=false
           gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' | grep -qx false
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha')" = "$RELEASE_SHA"
+  distribute:
+    if: github.ref == 'refs/heads/main' && inputs.distribute_tag != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.distribute_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Require an existing published release from successful release CI
+        run: |
+          printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-alpha\.[0-9]+)?$'
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release-metadata.json"
+          jq -e '.draft == false' "$RUNNER_TEMP/release-metadata.json" >/dev/null
+          source_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha')"
+          jq -e --arg sha "$source_sha" '.target_commitish == $sha' "$RUNNER_TEMP/release-metadata.json" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?head_sha=$source_sha&per_page=100" |
+            jq -e --arg sha "$source_sha" '[.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and .event == "push" and .conclusion == "success")] | length > 0' >/dev/null
+          mkdir "$RUNNER_TEMP/daylight-assets"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/daylight-assets" --pattern '*.tar.gz' --pattern release.json --pattern SHA256SUMS
+      - name: Copy verified release archives to R2 without rebuilding or replacing the release
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+          R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+          R2_ENDPOINT: https://${{ vars.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          command -v aws >/dev/null
+          python3 scripts/publish_r2.py "$RELEASE_TAG" "$RUNNER_TEMP/daylight-assets" "$RUNNER_TEMP/release-metadata.json"
