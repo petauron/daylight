@@ -22,6 +22,22 @@ The example listens on `127.0.0.1:8080`, serves `/` only for `example.com`, and 
 
 Daylight never downloads code at startup, uses a shell command, looks up Caddy through PATH, or modifies the source configuration. Missing/invalid configuration fails closed. Certificates remain in the configured persistent Caddy store. The website process and its child stay within the same systemd resource limits when managed by Vastora.
 
+## Shared web-server deployment
+
+New releases also contain the exact `site/index.html` embedded in the standalone
+launcher. A deployment manager can verify the archive and serve this file with
+an existing Caddy instance. This mode needs no running Daylight process and no
+second Caddy instance. The manager owns hostname matching, listeners, security
+headers, certificates and the combined server configuration; the page never
+contains deployment configuration or executable hooks.
+
+Keep the page read-only and verify its package digest before publishing an
+update. Validate the combined configuration, load it through the existing
+server's configuration owner, and retain the previous page until the new page
+passes an actual request. Removing this website must remove only its routes,
+leaving the shared server and other applications running. The standalone
+`daylight run` command remains available for independent deployments.
+
 ## Updates
 
 Edit the page, submit a PR and pass the required CI. Merge the Release Please version PR after its own CI completes. The release workflow packages the exact checked tag commit, verifies the archives, and publishes the draft only when both archives and checksums are confirmed.
