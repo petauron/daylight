@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/petauron/daylight/compare/v0.1.0...v0.2.0) (2026-10-31)
+
+
+### Features
+
+* **package:** provide content for shared Caddy ([#8](https://github.com/petauron/daylight/issues/8)) ([e10e2f8](https://github.com/petauron/daylight/commit/e10e2f8783064b4fb5df251f13c292ff875653a4))
+
+
+### Bug Fixes
+
+* distribute website archives directly to R2 from CI ([#7](https://github.com/petauron/daylight/issues/7)) ([39a1503](https://github.com/petauron/daylight/commit/39a150353f7add2af4b4442dce193c29366efbb6))
+
 ## [0.1.0](https://github.com/petauron/daylight/compare/v3.0.0-alpha.1...v0.1.0) (2026-10-30)
 
 
