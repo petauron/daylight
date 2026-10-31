@@ -37,7 +37,8 @@ for arch in ("amd64", "arm64"):
             if len(members) != len(entries):
                 raise SystemExit("duplicate upstream archive member")
             payload = {"daylight": binary.read_bytes(), "README.md": (root / "README.md").read_bytes(),
-                       "examples/site.json": (root / "examples/site.json").read_bytes()}
+                       "examples/site.json": (root / "examples/site.json").read_bytes(),
+                       "site/index.html": (root / "site/index.html").read_bytes()}
             for name, destination in (("caddy", "caddy"), ("LICENSE", "LICENSE"), ("README.md", "CADDY-README.md")):
                 member = members.get(name)
                 if member is None or not member.isfile() or member.size > 64 * 1024 * 1024:
