@@ -18,8 +18,8 @@ jobs:
     if: github.ref == 'refs/heads/main' && inputs.distribute_tag == ''
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
-      pull-requests: read
+      contents: write
+      pull-requests: write
       actions: read
     outputs:
       created: ${{ steps.release.outputs.release_created }}
@@ -31,25 +31,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
-            jq -cer --arg sha "$GITHUB_SHA" --arg repo "$GITHUB_REPOSITORY"               '[.[] | select(.merged_at != null and .merge_commit_sha == $sha and .base.ref == "main" and .head.repo.full_name == $repo)] | if length == 1 then .[0] else error("one merged PR required") end')"
+            jq -cer --arg sha "$GITHUB_SHA" --arg repo "$GITHUB_REPOSITORY" \
+              '[.[] | select(.merged_at != null and .merge_commit_sha == $sha and .base.ref == "main" and .head.repo.full_name == $repo)] | if length == 1 then .[0] else error("one merged PR required") end')"
           head="$(printf '%s' "$pr" | jq -er '.head.sha')"
           for workflow in ci.yml; do
             gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$head&per_page=100" |
               jq -e --arg sha "$head" '.workflow_runs | sort_by(.id) | last | .head_sha == $sha and .status == "completed" and .conclusion == "success"'
           done
-      - name: Mint short-lived release app token
-        id: release_app_token
-        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
-        with:
-          app-id: ${{ vars.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
+      - name: Create a draft release without updating the next version PR
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         with:
-          token: ${{ steps.release_app_token.outputs.token }}
+          token: ${{ github.token }}
           target-branch: main
+          skip-github-pull-request: true
   publish:
     needs: prepare
     if: needs.prepare.outputs.created == 'true'
@@ -108,6 +103,28 @@ jobs:
           gh release edit "$RELEASE_TAG" --draft=false
           gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' | grep -qx false
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_TAG" --jq '.sha')" = "$RELEASE_SHA"
+  release-pr:
+    needs: [prepare, publish]
+    if: always() && github.ref == 'refs/heads/main' && inputs.distribute_tag == '' && needs.prepare.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Mint short-lived release app token
+        id: release_app_token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Create or update the next release pull request without publishing
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        with:
+          token: ${{ steps.release_app_token.outputs.token }}
+          target-branch: main
+          skip-github-release: true
   distribute:
     if: github.ref == 'refs/heads/main' && inputs.distribute_tag != ''
     runs-on: ubuntu-24.04
