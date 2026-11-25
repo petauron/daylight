@@ -57,11 +57,16 @@ jobs:
       RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
       RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - name: Cache pinned Caddy archives
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/daylight-caddy-cache
+          key: daylight-caddy-${{ runner.os }}-${{ hashFiles('release/caddy.json') }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.6
           cache: false
@@ -75,6 +80,8 @@ jobs:
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$target" --jq '.sha')" = "$RELEASE_SHA"
           gh release edit "$RELEASE_TAG" --target "$RELEASE_SHA"
       - name: Package both architectures with verified Caddy
+        env:
+          DAYLIGHT_CADDY_CACHE_DIR: ${{ runner.temp }}/daylight-caddy-cache
         run: python3 scripts/package.py
       - name: Stage, read back and verify release assets
         run: |
