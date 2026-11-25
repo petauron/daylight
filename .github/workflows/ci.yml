@@ -5,24 +5,83 @@ on:
   workflow_call:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}-${{ github.base_ref || 'none' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - name: Determine CI scope
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          run_ci=true
+          scope_reason='full-default'
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$BASE_REF" = "main" ] && [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ] && \
+             git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null && \
+             git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            if cls="$(sh scripts/classify-ci-changes.sh --git "$BASE_SHA" "$HEAD_SHA")"; then
+              parsed="$(printf '%s\n' "$cls" | awk -F= '$1 == "run_ci" { print $2 }')"
+              if [ "$parsed" = "true" ] || [ "$parsed" = "false" ]; then
+                run_ci="$parsed"
+                scope_reason='pull-request-diff'
+              else
+                scope_reason='classifier-parse-fallback'
+              fi
+            else
+              scope_reason='classifier-exit-fallback'
+            fi
+          fi
+          echo "Scope ($scope_reason): run_ci=$run_ci"
+          echo "run_ci=$run_ci" >> "$GITHUB_OUTPUT"
+      - name: Cache pinned Caddy archives
+        if: steps.scope.outputs.run_ci == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/daylight-caddy-cache
+          key: daylight-caddy-${{ runner.os }}-${{ hashFiles('release/caddy.json') }}
+      - if: steps.scope.outputs.run_ci == 'true'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.6
           cache: false
       - name: Check and compile the standard-library application
+        if: steps.scope.outputs.run_ci == 'true'
         run: |
+          set -eu
+          sh -n scripts/classify-ci-changes.sh
           go vet ./...
           go build -o "$RUNNER_TEMP/daylight" .
           python3 -m py_compile scripts/package.py scripts/publish_r2.py
-          test "$(cat version.txt)" = "$(python3 -c 'import json; print(json.load(open(".release-please-manifest.json"))["."])')"
+          manifest_version="$(jq -ser '
+            if length == 1
+               and (.[0] | type == "object" and length == 1)
+               and (.[0]["."] | type == "string")
+               and (.[0]["."] | (contains("\n") | not) and (contains("\r") | not))
+               and (.[0]["."] | test("^[0-9]+\\.[0-9]+\\.[0-9]+(-alpha\\.[0-9]+)?\\z"))
+            then .[0]["."]
+            else error("invalid manifest version")
+            end
+          ' .release-please-manifest.json)"
+          printf '%s\n' "$manifest_version" > "$RUNNER_TEMP/expected-version-nl"
+          printf '%s' "$manifest_version" > "$RUNNER_TEMP/expected-version-raw"
+          cmp -s version.txt "$RUNNER_TEMP/expected-version-nl" || cmp -s version.txt "$RUNNER_TEMP/expected-version-raw"
       - name: Package and verify both architectures
+        if: steps.scope.outputs.run_ci == 'true'
+        env:
+          DAYLIGHT_CADDY_CACHE_DIR: ${{ runner.temp }}/daylight-caddy-cache
         run: |
+          set -eu
           python3 scripts/package.py
           (cd dist && sha256sum --check SHA256SUMS)
